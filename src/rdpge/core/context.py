@@ -116,7 +116,12 @@ Tool: {tool}
         return messages
 
     def build_turn_context(self, graph: GraphState) -> list[Message]:
-        """Turn 2+: Rebuild entire messages list from scratch."""
+        """Turn 2+: Rebuild entire messages list from scratch.
+
+        For multi-turn sessions, this interleaves [USER TASK] markers
+        with nodes based on request_index, so the LLM sees:
+            [USER TASK 1] → nodes from request 1 → [USER TASK 2] → nodes from request 2 → ...
+        """
         messages = []
 
         # 1. System prompt (fresh, with updated manifest)
@@ -125,27 +130,38 @@ Tool: {tool}
             content=self._render_system_prompt(graph)
         ))
 
-        # 2. User task (from graph, never lost)
-        messages.append(Message(
-            role="user",
-            content=f"[USER TASK]\n{graph.original_request}"
-        ))
-
-        # 3. Loop through ALL nodes in order
+        # 2. Interleave requests with their nodes
+        # Group nodes by request_index
+        nodes_by_request: dict[int, list[tuple[str, any]]] = {}
         for node_id, node in graph.nodes.items():
-            # Assistant message: the code LLM generated
-            messages.append(Message(
-                role="assistant",
-                content=node.code
-            ))
+            req_idx = node.request_index
+            if req_idx not in nodes_by_request:
+                nodes_by_request[req_idx] = []
+            nodes_by_request[req_idx].append((node_id, node))
 
-            # User message: execution result (with blurring applied)
+        # Walk through each request and its nodes
+        for req_idx, request_text in enumerate(graph.requests):
+            # Add user task
             messages.append(Message(
                 role="user",
-                content=self._build_node_result(node_id, node, graph)
+                content=f"[USER TASK]\n{request_text}"
             ))
 
-        # 4. Include error from previous failed attempt (if any)
+            # Add nodes belonging to this request
+            for node_id, node in nodes_by_request.get(req_idx, []):
+                # Assistant message: the code LLM generated
+                messages.append(Message(
+                    role="assistant",
+                    content=node.code
+                ))
+
+                # User message: execution result (with blurring applied)
+                messages.append(Message(
+                    role="user",
+                    content=self._build_node_result(node_id, node, graph)
+                ))
+
+        # 3. Include error from previous failed attempt (if any)
         if graph.last_error:
             messages.append(Message(
                 role="user",
@@ -154,3 +170,4 @@ Tool: {tool}
             graph.last_error = None  # Clear after showing once
 
         return messages
+

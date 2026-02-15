@@ -15,7 +15,7 @@ import re
 import json
 import time
 import uuid
-from typing import Optional
+from typing import Optional, Any
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
@@ -96,6 +96,10 @@ class ExecutionEngine:
 
     Orchestrates the full agent loop:
         context → LLM → extract code → execute → tool → graph update → repeat
+
+    Supports multi-turn execution: the engine keeps its GraphState alive
+    between run() calls. Each call either creates a new session (first run)
+    or continues the existing session (continuation).
     """
 
     def __init__(
@@ -104,19 +108,44 @@ class ExecutionEngine:
         registry: ToolRegistry,
         context_builder: ContextConstructor,
         hooks: HookManager,
+        store=None,  # Optional SessionStore
         max_steps: int = 25,
     ):
         self.llm = llm
         self.registry = registry
         self.context_builder = context_builder
         self.hooks = hooks
+        self.store = store
         self.max_steps = max_steps
         self.executor = CodeExecutor()
         self.graph_manager = GraphStateManager()
 
+        # Multi-turn state — persists between run() calls
+        self.graph: Optional[GraphState] = None
+        self.session_id: Optional[str] = None
+
+    def reset(self) -> None:
+        """Clear session state for a fresh start."""
+        self.graph = None
+        self.session_id = None
+
+    def set_graph(self, graph: GraphState) -> None:
+        """Set graph state (used by load_session)."""
+        self.graph = graph
+        self.session_id = graph.session_id
+
+    async def _save_state(self) -> None:
+        """Save current graph state to store (if store is provided)."""
+        if self.store and self.graph:
+            from ..storage.base import serialize_graph
+            await self.store.save(self.session_id, serialize_graph(self.graph))
+
     async def run(self, request: str) -> AgentResult:
         """
         Run the full agent loop for a given user request.
+
+        If no session exists, creates a new one.
+        If a session exists, continues it with the new request.
 
         Args:
             request: The user's task (e.g., "Fix the auth bug in auth.py")
@@ -124,12 +153,25 @@ class ExecutionEngine:
         Returns:
             AgentResult with success status, trace, and final graph state
         """
-        # Initialize session
-        session_id = str(uuid.uuid4())[:8]
-        graph = GraphState(
-            session_id=session_id,
-            original_request=request
-        )
+        # Determine: new session or continuation?
+        if self.graph is None:
+            # First run — create new session
+            session_id = str(uuid.uuid4())[:8]
+            self.session_id = session_id
+            self.graph = GraphState(
+                session_id=session_id,
+                original_request=request,
+                requests=[request],
+            )
+        else:
+            # Continuation — append new request to existing session
+            session_id = self.session_id
+            self.graph.requests.append(request)
+            self.graph.last_error = None  # Clear errors from previous run
+
+        graph = self.graph
+        request_index = len(graph.requests) - 1
+
         trace = SessionTrace(
             session_id=session_id,
             original_request=request
@@ -150,7 +192,7 @@ class ExecutionEngine:
                 })
 
                 # --- 1. Build context ---
-                if step == 1:
+                if not graph.nodes:
                     messages = self.context_builder.build_initial_context(graph)
                 else:
                     messages = self.context_builder.build_turn_context(graph)
@@ -225,6 +267,10 @@ class ExecutionEngine:
                 node = await self.graph_manager.update_graph(
                     graph, execution, tool_output
                 )
+                node.request_index = request_index
+
+                # --- 6.5 Persist state after each step ---
+                await self._save_state()
 
                 # --- 7. Record trace ---
                 step_duration = (time.time() - step_start) * 1000

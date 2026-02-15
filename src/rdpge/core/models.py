@@ -48,6 +48,7 @@ class NodeState:
     tool_output: Optional[str] = None
     tool_call: Optional[ToolCall] = None
     edge: Optional[str] = None
+    request_index: int = 0
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
 
 @dataclass
@@ -55,6 +56,7 @@ class GraphState:
     session_id: str
     original_request: str
     nodes: dict[str, NodeState] = field(default_factory=dict)
+    requests: list[str] = field(default_factory=list)
     active_node: Optional[str] = None
     active_edge: Optional[str] = None
     current_task: str = "a"

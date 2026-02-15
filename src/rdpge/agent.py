@@ -24,18 +24,23 @@ from .core.context import ContextConstructor
 from .tools.base import ToolWrapper, BaseTool
 from .tools.registry import ToolRegistry
 from .observe.hooks import HookManager
+from .storage.base import InMemoryStore, deserialize_graph
 
 
 class Agent:
     """
     The RDPGE Agent — developer entry point.
 
+    Supports multi-turn execution: call run() multiple times
+    and the agent preserves context within the same session.
+
     Args:
         llm: Any LLM provider with an async generate(messages) method
         tools: List of ToolWrappers (from @tool decorator, BaseTool, or ToolSpec)
         instructions: Agent instructions string for the system prompt
         instructions_file: Path to a .md file containing agent instructions
-        max_steps: Maximum execution steps before forced termination (default: 25)
+        max_steps: Maximum execution steps per run (default: 25)
+        store: SessionStore backend for persistence (default: InMemoryStore)
     """
 
     def __init__(
@@ -45,9 +50,11 @@ class Agent:
         instructions: str = "",
         instructions_file: Optional[str] = None,
         max_steps: int = 25,
+        store=None,
     ):
         self.llm = llm
         self.max_steps = max_steps
+        self.store = store or InMemoryStore()
 
         # Build tool registry
         self.registry = ToolRegistry()
@@ -74,14 +81,22 @@ class Agent:
         # Hook manager
         self.hooks = HookManager()
 
-        # Engine
+        # Engine (with store for persistence)
         self._engine = ExecutionEngine(
             llm=self.llm,
             registry=self.registry,
             context_builder=self.context_builder,
             hooks=self.hooks,
+            store=self.store,
             max_steps=self.max_steps,
         )
+
+    # ---- Session Management ----
+
+    @property
+    def session_id(self) -> Optional[str]:
+        """Get the current session ID, or None if no session is active."""
+        return self._engine.session_id
 
     def on(self, event: str):
         """
@@ -94,9 +109,46 @@ class Agent:
         """
         return self.hooks.on(event)
 
+    def new_session(self) -> None:
+        """
+        Start a fresh session. Clears all in-memory state.
+
+        Previous session data remains in the store (if one is configured)
+        and can be resumed later via load_session().
+        """
+        self._engine.reset()
+
+    async def load_session(self, session_id: str) -> bool:
+        """
+        Load a previously saved session from the store.
+
+        Args:
+            session_id: The session ID to load
+
+        Returns:
+            True if session was loaded, False if not found
+        """
+        state = await self.store.load(session_id)
+        if state is None:
+            return False
+
+        graph = deserialize_graph(state)
+        self._engine.set_graph(graph)
+        return True
+
+    async def list_sessions(self) -> list[str]:
+        """List all session IDs in the store."""
+        return await self.store.list_sessions()
+
     async def run(self, request: str) -> AgentResult:
         """
         Run the agent with a user request.
+
+        First call creates a new session. Subsequent calls
+        continue the same session with full context.
+
+        Use new_session() to start fresh, or
+        load_session() to resume a previous session.
 
         Args:
             request: The task to execute (e.g., "Fix the bug in auth.py")
@@ -117,3 +169,4 @@ class Agent:
                 "Request cannot be empty or whitespace-only."
             )
         return await self._engine.run(request.strip())
+
