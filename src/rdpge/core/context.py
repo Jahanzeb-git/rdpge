@@ -37,19 +37,70 @@ class ContextConstructor:
 
     # --- Build manifest section ---
     def _build_manifest(self, graph: GraphState) -> str:
-        # Collect tasks that are NOT the current task
-        other_tasks = set()
-        for node in graph.nodes.values():
-            if node.task_id != graph.current_task:
-                other_tasks.add(node.task_id)
+        if not graph.nodes:
+            return (
+                "Active Node: (awaiting first action)\n"
+                "Current Task: a\n"
+                "Task Map: (no tasks yet)"
+            )
 
-        manifest = f"""## GRAPH MANIFEST
-Active Node: {graph.active_node or "(awaiting first action)"}
+        # 1. Collect per-task metadata
+        #    - last_step_index: position of the task's last node in the ordered dict
+        #    - step_count: total nodes in this task
+        task_info: dict[str, dict] = {}
+        node_list = list(graph.nodes.keys())
+        total_nodes = len(node_list)
+
+        for idx, (node_id, node) in enumerate(graph.nodes.items()):
+            tid = node.task_id
+            if tid not in task_info:
+                task_info[tid] = {"last_index": idx, "step_count": 0}
+            task_info[tid]["last_index"] = idx
+            task_info[tid]["step_count"] += 1
+
+        # 2. Compute in-degree: count unique SOURCE tasks that created edges to each TARGET task
+        #    edge field is like "node-a" → target task is "a"
+        #    source task is the task_id of the node that declared the edge
+        in_degree: dict[str, int] = {tid: 0 for tid in task_info}
+        edge_sources: dict[str, set] = {tid: set() for tid in task_info}
+
+        for node in graph.nodes.values():
+            if node.edge:
+                # Extract target task letter from edge (e.g., "node-a" → "a")
+                target_task = node.edge.replace("node-", "")
+                source_task = node.task_id
+                # Only count cross-task edges (not self-edges)
+                if target_task in edge_sources and source_task != target_task:
+                    edge_sources[target_task].add(source_task)
+
+        for tid in in_degree:
+            in_degree[tid] = len(edge_sources[tid])
+
+        # 3. Build task map lines
+        task_lines = []
+        for tid, info in task_info.items():
+            if tid == graph.current_task:
+                distance_str = "active"
+            else:
+                distance = total_nodes - 1 - info["last_index"]
+                distance_str = f"{distance} steps ago"
+
+            refs = in_degree[tid]
+            refs_str = f"{refs} reference{'s' if refs != 1 else ''}"
+            steps_str = f"{info['step_count']} step{'s' if info['step_count'] != 1 else ''}"
+
+            task_lines.append(
+                f"  Task {tid.upper()}: {distance_str} | {refs_str} | {steps_str}"
+            )
+
+        task_map = "\n".join(task_lines)
+
+        manifest = f"""Active Node: {graph.active_node or "(awaiting first action)"}
 Current Task: {graph.current_task}
-Inactive Tasks: {list(other_tasks) if other_tasks else "(none yet)"}
 Active Edge: {graph.active_edge or "(none)"}
 
-You may create an edge to any node from an inactive task to restore its tool output."""
+Task Map:
+{task_map}"""
         return manifest
 
     # --- Render system prompt ---

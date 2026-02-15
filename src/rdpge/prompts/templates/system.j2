@@ -178,11 +178,16 @@ The RDPGE paradigm rules (output format, action schema, node naming, edge behavi
 ## GRAPH MANIFEST
 
 The following is a live snapshot of your execution graph. It updates every turn.
+
 - **Active Node:** Your most recent step.
 - **Current Task:** The task letter you are currently working on.
-- **Inactive Tasks:** Tasks whose tool outputs are blurred. You can create an edge to restore them if needed.
 - **Active Edge:** The task currently restored via edge (if any).
 
-Use this information to orient yourself — know where you are, what's visible, and what's hidden.
+**Task Map** shows all tasks with two key metrics:
+
+- **Distance** ("X steps ago"): How many steps have passed since this task was last active. This reflects how far back in the conversation this task's context sits. The further back, the more diluted it is in your attention window.
+- **References** ("X references"): How many other tasks have created edges pointing to this task. This is the number of other tasks that depended on this task's output. A task that many others reference has had broad influence on the session's work.
+
+You may create an edge to any inactive task by setting `"edge": "node-x"` to restore its full tool outputs.
 
 {{ graph_manifest }}

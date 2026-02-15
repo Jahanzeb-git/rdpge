@@ -241,6 +241,70 @@ assert engine.session_id == "multi1", "set_graph should set session_id"
 
 print("8. Engine multi-turn state OK ✓")
 
+# ---- Test 9: Manifest distance + in-degree ----
+# Build a realistic multi-task graph:
+#   Task A: 3 nodes (auth work)
+#   Task B: 2 nodes (database work)
+#   Task J: 2 nodes (integration, creates edges to A and to A again via different node)
+#   Task C: 1 node (API, creates edge to A)
+graph3 = GraphState(
+    session_id="manifest1",
+    original_request="Build the app",
+    requests=["Build the app"],
+    current_task="c",
+    current_step=8,
+)
+
+# Task A: nodes 0, 1, 2
+graph3.nodes["node-a1"] = NodeState(node_id="node-a1", task_id="a", code="...", console_output="")
+graph3.nodes["node-a2"] = NodeState(node_id="node-a2", task_id="a", code="...", console_output="")
+graph3.nodes["node-a3"] = NodeState(node_id="node-a3", task_id="a", code="...", console_output="")
+
+# Task B: nodes 3, 4
+graph3.nodes["node-b1"] = NodeState(node_id="node-b1", task_id="b", code="...", console_output="")
+graph3.nodes["node-b2"] = NodeState(node_id="node-b2", task_id="b", code="...", console_output="")
+
+# Task J: nodes 5, 6 — j1 creates edge to task A, j2 also edges to task A
+graph3.nodes["node-j1"] = NodeState(node_id="node-j1", task_id="j", code="...", console_output="", edge="node-a")
+graph3.nodes["node-j2"] = NodeState(node_id="node-j2", task_id="j", code="...", console_output="", edge="node-a")
+
+# Task C: node 7 — edges to task A
+graph3.nodes["node-c1"] = NodeState(node_id="node-c1", task_id="c", code="...", console_output="", edge="node-a")
+
+manifest = ctx._build_manifest(graph3)
+
+# Verify distance:
+# Total nodes = 8 (indices 0-7)
+# Task A last node index = 2, distance = 7 - 2 = 5
+# Task B last node index = 4, distance = 7 - 4 = 3
+# Task J last node index = 6, distance = 7 - 6 = 1
+# Task C = current task = "active"
+assert "Task A: 5 steps ago" in manifest, f"Task A distance wrong.\nManifest:\n{manifest}"
+assert "Task B: 3 steps ago" in manifest, f"Task B distance wrong.\nManifest:\n{manifest}"
+assert "Task J: 1 steps ago" in manifest, f"Task J distance wrong.\nManifest:\n{manifest}"
+assert "Task C: active" in manifest, f"Task C should be active.\nManifest:\n{manifest}"
+
+# Verify in-degree (references):
+# Task A: edges from J (j1, j2 both from task j → 1 unique source) + C (c1 → 1 unique source) = 2 references
+# Task B: no edges pointing to it = 0 references
+# Task J: no edges pointing to it = 0 references
+# Task C: no edges pointing to it = 0 references
+assert "Task A: 5 steps ago | 2 references" in manifest, f"Task A references wrong.\nManifest:\n{manifest}"
+assert "Task B: 3 steps ago | 0 references" in manifest, f"Task B references wrong.\nManifest:\n{manifest}"
+assert "Task J: 1 steps ago | 0 references" in manifest, f"Task J references wrong.\nManifest:\n{manifest}"
+assert "Task C: active | 0 references" in manifest, f"Task C references wrong.\nManifest:\n{manifest}"
+
+# Verify step counts
+assert "3 steps" in manifest.split("Task A")[1].split("\n")[0], "Task A should show 3 steps"
+assert "2 steps" in manifest.split("Task B")[1].split("\n")[0], "Task B should show 2 steps"
+
+# Verify empty graph case
+empty_graph = GraphState(session_id="empty", original_request="test", requests=["test"])
+empty_manifest = ctx._build_manifest(empty_graph)
+assert "no tasks yet" in empty_manifest, f"Empty graph manifest wrong: {empty_manifest}"
+
+print("9. Manifest distance + in-degree OK ✓")
+
 print("\n" + "=" * 60)
 print("ALL TESTS PASSED ✓")
 print("=" * 60)
