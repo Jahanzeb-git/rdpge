@@ -108,7 +108,6 @@ action = {
 ## EXECUTION APPROACH
 
 - Each action supports one tool call. Complex tasks naturally require multiple steps and nodes.
-- Changes you make are not verified unless you explicitly read the result back. Completing without verification risks undetected errors.
 - On your first turn, there are no prior execution results.
 
 ---
@@ -183,7 +182,7 @@ The following is a live snapshot of your execution graph. It updates every turn.
 **Task Map** shows all tasks with two key metrics:
 
 - **Distance** ("X steps ago"): How many steps separate the current position from this task's last activity.
-- **References** ("X references"): How many other tasks have created edges pointing to this task — the number of other tasks that depended on this task's output.
+- **References** ("X references"): How many other tasks have created edges pointing to this task — the number of other tasks that depended on this task.
 
 To restore a blurred task's full tool outputs, set `"edge": "node-x"` in your action.
 
