@@ -80,7 +80,8 @@ class Agent:
         self.context_builder = ContextConstructor(
             domain_context=instructions,
             domain_file=instructions_file,
-            tools_prompt=self.registry.to_prompt()
+            tools_prompt=self.registry.to_prompt(),
+            max_steps=self.max_steps,
         )
 
         # Hook manager

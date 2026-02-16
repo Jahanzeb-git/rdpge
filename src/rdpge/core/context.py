@@ -19,8 +19,10 @@ class ContextConstructor:
         domain_context: str = "",
         domain_file: Optional[str] = None,
         tools_prompt: str = "",
+        max_steps: int = 25,
     ):
         self.tools_prompt = tools_prompt
+        self.max_steps = max_steps
 
         # Resolve domain context: file takes priority over string
         if domain_file:
@@ -95,8 +97,11 @@ class ContextConstructor:
 
         task_map = "\n".join(task_lines)
 
+        current_step = total_nodes + 1  # This step (manifest renders before node is recorded)
+
         manifest = f"""Active Node: {graph.active_node or "(awaiting first action)"}
 Current Task: {graph.current_task}
+Step: {current_step} of {self.max_steps}
 Active Edge: {graph.active_edge or "(none)"}
 
 Task Map:
