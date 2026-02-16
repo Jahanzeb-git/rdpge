@@ -140,15 +140,30 @@ User Request
 
 Every turn, the LLM sees this dashboard in its context:
 
-```
-Active Node: node-b2
-Current Task: b
-Step: 6 of 25
-Active Edge: (none)
-
-Task Map:
-  Task A: 2 steps ago | 0 references | 3 steps
-  Task B: active | 0 references | 2 steps
+```json
+{
+  "tasks": {
+    "a": {
+      "status": "inactive",
+      "steps": 3,
+      "distance": 2,
+      "references": 0 
+    },
+    "b": {
+      "status": "active", 
+      "steps": 2
+      "distance": 0,
+      "references": 0
+    }
+  },
+  "edges": [],
+  "runtime": {
+    "step": 6,
+    "active_node": "node-b2",
+    "current_task": "b",
+    "restored_context": null
+  }
+}
 ```
 
 - **Distance** tells the LLM how far back a task is (recency).
@@ -167,7 +182,7 @@ Tool: [BLURRED]
 Tool: def login(user, pwd): ...
 ```
 
-The LLM can restore Task A's context by setting `edge: "node-a"` in its action.
+The LLM can restore Task A's context by calling `restore_context(task="a")`.
 
 ## Signal Tools
 

@@ -16,7 +16,8 @@ class GraphStateManager:
         self,
         graph: GraphState,
         execution: ExecutionResult,
-        tool_output: Optional[str]
+        tool_output: Optional[str],
+        active_edge: Optional[str] = None
     ) -> NodeState:
         """
         Updates the graph after a step execution:
@@ -27,8 +28,9 @@ class GraphStateManager:
             graph.active_node = execution.action.node
 
         # handling edge — edges last ONE turn, then reset
-        if execution.action.edge:
-            graph.active_edge = execution.action.edge
+        # Now passed explicitly via active_edge (from restore_context tool)
+        if active_edge:
+            graph.active_edge = active_edge
         else:
             graph.active_edge = None
 
@@ -44,7 +46,7 @@ class GraphStateManager:
             console_output=execution.console_output,
             tool_output=tool_output,
             tool_call=execution.action.tool_call,
-            edge=execution.action.edge
+            edge=active_edge
         )
 
         graph.nodes[node.node_id] = node

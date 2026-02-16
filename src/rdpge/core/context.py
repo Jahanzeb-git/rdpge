@@ -8,6 +8,7 @@
 #   - Message list reconstruction each turn
 
 from typing import Optional
+import json
 from jinja2 import Template
 from pathlib import Path
 from .models import GraphState, Message
@@ -40,73 +41,84 @@ class ContextConstructor:
     # --- Build manifest section ---
     def _build_manifest(self, graph: GraphState) -> str:
         if not graph.nodes:
-            return (
-                "Active Node: (awaiting first action)\n"
-                "Current Task: a\n"
-                "Task Map: (no tasks yet)"
-            )
+            manifest_data = {
+                "tasks": {},
+                "edges": [],
+                "runtime": {
+                    "step": 0,
+                    "active_node": None,
+                    "current_task": graph.current_task,
+                    "restored_context": None
+                }
+            }
+            return json.dumps(manifest_data, indent=2)
 
-        # 1. Collect per-task metadata
-        #    - last_step_index: position of the task's last node in the ordered dict
-        #    - step_count: total nodes in this task
-        task_info: dict[str, dict] = {}
-        node_list = list(graph.nodes.keys())
-        total_nodes = len(node_list)
-
-        for idx, (node_id, node) in enumerate(graph.nodes.items()):
-            tid = node.task_id
-            if tid not in task_info:
-                task_info[tid] = {"last_index": idx, "step_count": 0}
-            task_info[tid]["last_index"] = idx
-            task_info[tid]["step_count"] += 1
-
-        # 2. Compute in-degree: count unique SOURCE tasks that created edges to each TARGET task
-        #    edge field is like "node-a" → target task is "a"
-        #    source task is the task_id of the node that declared the edge
-        in_degree: dict[str, int] = {tid: 0 for tid in task_info}
-        edge_sources: dict[str, set] = {tid: set() for tid in task_info}
+        # 1. Analyze Task States & Edges
+        task_stats: dict[str, int] = {}  # task_id -> step_count
+        edges: set[str] = set()          # "source -> target" strings
 
         for node in graph.nodes.values():
+            # Count steps per task
+            tid = node.task_id
+            task_stats[tid] = task_stats.get(tid, 0) + 1
+
+            # Detect edges (dependencies)
+            # If node in task B restores task A context, that's B -> A dependency
             if node.edge:
-                # Extract target task letter from edge (e.g., "node-a" → "a")
+                # node.edge format is "node-a" -> target is "a"
                 target_task = node.edge.replace("node-", "")
-                source_task = node.task_id
-                # Only count cross-task edges (not self-edges)
-                if target_task in edge_sources and source_task != target_task:
-                    edge_sources[target_task].add(source_task)
+                if target_task != tid:  # exclude self-references
+                    edges.add(f"{tid} -> {target_task}")
 
-        for tid in in_degree:
-            in_degree[tid] = len(edge_sources[tid])
+        # 2. Compute in-degree (References)
+        in_degree: dict[str, int] = {tid: 0 for tid in task_stats}
+        for edge_str in edges:
+            # edge string is "source -> target"
+            _, target = edge_str.split(" -> ")
+            in_degree[target] = in_degree.get(target, 0) + 1
 
-        # 3. Build task map lines
-        task_lines = []
-        for tid, info in task_info.items():
+        # 3. Build task map with full metrics
+        total_nodes = len(graph.nodes)
+        tasks_map = {}
+        
+        # We need the last index of each task to compute distance
+        task_last_index = {}
+        for idx, node in enumerate(graph.nodes.values()):
+            task_last_index[node.task_id] = idx
+
+        for tid, count in task_stats.items():
+            status = "active" if tid == graph.current_task else "inactive"
+            
+            # Distance: steps since last activity
+            # If active, distance is 0 (or "active")
             if tid == graph.current_task:
-                distance_str = "active"
+                 distance = 0
             else:
-                distance = total_nodes - 1 - info["last_index"]
-                distance_str = f"{distance} steps ago"
+                 last_idx = task_last_index.get(tid, 0)
+                 distance = total_nodes - 1 - last_idx
 
-            refs = in_degree[tid]
-            refs_str = f"{refs} reference{'s' if refs != 1 else ''}"
-            steps_str = f"{info['step_count']} step{'s' if info['step_count'] != 1 else ''}"
+            tasks_map[tid] = {
+                "status": status,
+                "steps": count,
+                "distance": distance,
+                "references": in_degree.get(tid, 0)
+            }
 
-            task_lines.append(
-                f"  Task {tid.upper()}: {distance_str} | {refs_str} | {steps_str}"
-            )
+        # 3. Build Runtime State
+        current_step = len(graph.nodes) + 1
+        
+        manifest_data = {
+            "tasks": tasks_map,
+            "edges": sorted(list(edges)),
+            "runtime": {
+                "step": current_step,
+                "current_task": graph.current_task,
+                "active_node": graph.active_node,
+                "restored_context": graph.active_edge or None
+            }
+        }
 
-        task_map = "\n".join(task_lines)
-
-        current_step = total_nodes + 1  # This step (manifest renders before node is recorded)
-
-        manifest = f"""Active Node: {graph.active_node or "(awaiting first action)"}
-Current Task: {graph.current_task}
-Step: {current_step} of {self.max_steps}
-Active Edge: {graph.active_edge or "(none)"}
-
-Task Map:
-{task_map}"""
-        return manifest
+        return json.dumps(manifest_data, indent=2)
 
     # --- Render system prompt ---
     def _render_system_prompt(self, graph: GraphState) -> str:
@@ -206,9 +218,13 @@ Tool: {tool}
             # Add nodes belonging to this request
             for node_id, node in nodes_by_request.get(req_idx, []):
                 # Assistant message: the code LLM generated
+                # IMPORTANT: Wrap in ```python``` fences so the LLM sees
+                # its own history in the format we expect it to produce.
+                # Without this, the LLM pattern-matches its fenceless
+                # history and stops using fences.
                 messages.append(Message(
                     role="assistant",
-                    content=node.code
+                    content=f"```python\n{node.code}\n```"
                 ))
 
                 # User message: execution result (with blurring applied)

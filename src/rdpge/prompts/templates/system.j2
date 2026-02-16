@@ -35,7 +35,6 @@ print("Computed path:", file_path)
 # You MUST define exactly this variable — the name MUST be 'action'
 action = {
     "node": "node-a1",
-    "edge": None,
     "reason": summary,
     "tool_call": {"name": "read_file", "args": {"path": file_path}}
 }
@@ -48,7 +47,6 @@ action = {
 | Field | Type | Purpose |
 |-------|------|---------|
 | `node` | `str` | Node ID for this step. Format: `node-{task_letter}{step_number}` |
-| `edge` | `str` or `None` | Restore a blurred task's tool outputs. Format: `node-{task_letter}` (e.g., `"node-a"`) |
 | `reason` | `str` | User-facing message — the ONLY thing the user sees. Explain, report, or chat here. |
 | `tool_call` | `dict` | Tool to execute. Either a registered tool or a signal tool. |
 
@@ -84,24 +82,25 @@ When you switch tasks, previous task tool outputs get **blurred** (hidden) to sa
 Tool: [BLURRED — this task's context is hidden. You can create an edge to restore it.]
 ```
 
-**To restore a blurred task's context**, set the `edge` field to the task reference:
+**To restore a blurred task's context**, use the `restore_context` signal tool.
 
 ```python
-# I need to see task "a" results again
+# I need to see task "a" results before deciding what to do next
 action = {
     "node": "node-c3",
-    "edge": "node-a",       # Restores ALL task "a" tool outputs
-    "reason": "Reviewing earlier analysis",
-    "tool_call": {"name": "read_file", "args": {"path": "report.py"}}
+    "reason": "Restoring task A context to check previous analysis",
+    "tool_call": {"name": "restore_context", "args": {"task": "a"}}
 }
 ```
 
+The restored context will be visible **in the next turn**. 
+
 **Edge rules:**
-- Edge references a TASK, not a specific step. Use `"node-a"`, NOT `"node-a2"`.
-- When you create an edge to a task, ALL tool outputs from that task's nodes are restored.
-- The edge lasts for ONE turn. If you need the context again next turn, set the edge again.
+- `restore_context` takes a task reference (e.g., `"a"`, not `"node-a"`).
+- When you use `restore_context`, execution continues. The tool output will confirm restoration.
+- The actual restored tool outputs from that task appear in the **next step**.
+- The restoration lasts for ONE turn. If you need it again, call `restore_context` again.
 - You can restore only ONE task per turn.
-- Restored tool outputs consume context space.
 
 ---
 
@@ -131,12 +130,12 @@ These tools are built into the runtime. They control execution flow.
 | `complete` | `{}` | Signals that the task is done. The execution loop ends. |
 | `ask_user` | `{"question": str}` | Pauses execution. The question is returned to the caller. Execution resumes when the user responds. |
 | `surrender` | `{"reason": str}` | Stops execution. The task cannot be accomplished with available tools or information. |
+| `restore_context` | `{"task": str}` | Restore a blurred task's context. Current step completes, loop continues. Restored context visible next turn. |
 
 ```python
 # Task finished summarize for the user
 action = {
     "node": "node-a4",
-    "edge": None,
     "reason": "Bug fixed. The login function now validates both username and password.",
     "tool_call": {"name": "complete", "args": {}}
 }
@@ -146,7 +145,6 @@ action = {
 # Need clarification before proceeding
 action = {
     "node": "node-a2",
-    "edge": None,
     "reason": "Which database are you using?",
     "tool_call": {"name": "ask_user", "args": {"question": "PostgreSQL, MySQL, or SQLite?"}}
 }
@@ -187,20 +185,20 @@ The RDPGE paradigm rules (output format, action schema, node naming, edge behavi
 {{ domain_context }}
 {% endif %}
 
-## GRAPH MANIFEST
+## GRAPH MANIFEST (RUNTIME STATE)
 
-The following is a live snapshot of your execution graph. It updates every turn.
+The current state of your execution graph is provided below in JSON format.
 
-- **Active Node:** Your most recent step.
-- **Current Task:** The task letter you are currently working on.
-- **Step:** Your current position and the hard execution limit. When the limit is reached, execution terminates regardless of task state.
-- **Active Edge:** The task currently restored via edge (if any).
+**Fields:**
+- `tasks`: Dictionary of task metrics.
+  - `status`: "active" or "inactive".
+  - `steps`: Total nodes in this task.
+  - `distance`: Steps since last activity (measure of temporal locality; higher = older).
+  - `references`: In-degree count (measure of dependency centrality; how many other tasks rely on this one).
+- `edges`: List of dependencies created via `restore_context`. Format: `source_task -> target_task` (e.g., "c -> a" means task C used data from task A).
+- `runtime`: Current execution pointer.
+  - `restored_context`: The task currently visible to you (if any).
 
-**Task Map** shows all tasks with two key metrics:
-
-- **Distance** ("X steps ago"): How many steps separate the current position from this task's last activity.
-- **References** ("X references"): How many other tasks have created edges pointing to this task — the number of other tasks that depended on this task.
-
-To restore a blurred task's full tool outputs, set `"edge": "node-x"` in your action.
-
+```json
 {{ graph_manifest }}
+```

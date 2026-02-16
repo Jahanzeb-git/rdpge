@@ -17,7 +17,8 @@ from datetime import datetime
 # Built-in tool names recognized by the engine as execution signals.
 # These are intercepted before reaching the ToolRegistry.
 # Note: 'abort' is NOT here — it's a developer-side mechanism, not LLM-callable.
-SIGNAL_TOOLS = frozenset({"complete", "ask_user", "surrender"})
+# Note: 'restore_context' is unique — it doesn't end the loop, it modifies graph state.
+SIGNAL_TOOLS = frozenset({"complete", "ask_user", "surrender", "restore_context"})
 
 # ------ LLM INTERFACE STRUCTURES ------
 class ToolCall(BaseModel):
@@ -26,7 +27,6 @@ class ToolCall(BaseModel):
 
 class ActionDict(BaseModel):
     node: str
-    edge: Optional[str] = None
     reason: str
     tool_call: ToolCall
 

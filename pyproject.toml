@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rdpge"
-version = "0.1.0"
+version = "0.2.0"
 description = "RDPGE: Runtime Dynamic & Probabilistic Graph Execution — A novel paradigm for agentic AI"
 readme = "README.md"
 license = {text = "MIT"}

@@ -1,4 +1,5 @@
 import sys
+import json
 import asyncio
 sys.path.insert(0, 'src')
 
@@ -241,12 +242,12 @@ assert engine.session_id == "multi1", "set_graph should set session_id"
 
 print("8. Engine multi-turn state OK ✓")
 
-# ---- Test 9: Manifest distance + in-degree ----
+# ---- Test 9: Manifest Graph Representation (JSON) ----
 # Build a realistic multi-task graph:
-#   Task A: 3 nodes (auth work)
-#   Task B: 2 nodes (database work)
-#   Task J: 2 nodes (integration, creates edges to A and to A again via different node)
-#   Task C: 1 node (API, creates edge to A)
+#   Task A: 3 nodes
+#   Task B: 2 nodes
+#   Task J: 2 nodes (uses A context)
+#   Task C: 1 node (uses A context)
 graph3 = GraphState(
     session_id="manifest1",
     original_request="Build the app",
@@ -264,46 +265,74 @@ graph3.nodes["node-a3"] = NodeState(node_id="node-a3", task_id="a", code="...", 
 graph3.nodes["node-b1"] = NodeState(node_id="node-b1", task_id="b", code="...", console_output="")
 graph3.nodes["node-b2"] = NodeState(node_id="node-b2", task_id="b", code="...", console_output="")
 
-# Task J: nodes 5, 6 — j1 creates edge to task A, j2 also edges to task A
+# Task J: nodes 5, 6 — j1 creates edge to task A (so dependency J -> A)
 graph3.nodes["node-j1"] = NodeState(node_id="node-j1", task_id="j", code="...", console_output="", edge="node-a")
 graph3.nodes["node-j2"] = NodeState(node_id="node-j2", task_id="j", code="...", console_output="", edge="node-a")
 
-# Task C: node 7 — edges to task A
+# Task C: node 7 — edges to task A (so dependency C -> A)
 graph3.nodes["node-c1"] = NodeState(node_id="node-c1", task_id="c", code="...", console_output="", edge="node-a")
 
-manifest = ctx._build_manifest(graph3)
+manifest_json = ctx._build_manifest(graph3)
+# print(manifest_json) # Debug
+data = json.loads(manifest_json)
 
-# Verify distance:
-# Total nodes = 8 (indices 0-7)
-# Task A last node index = 2, distance = 7 - 2 = 5
-# Task B last node index = 4, distance = 7 - 4 = 3
-# Task J last node index = 6, distance = 7 - 6 = 1
-# Task C = current task = "active"
-assert "Task A: 5 steps ago" in manifest, f"Task A distance wrong.\nManifest:\n{manifest}"
-assert "Task B: 3 steps ago" in manifest, f"Task B distance wrong.\nManifest:\n{manifest}"
-assert "Task J: 1 steps ago" in manifest, f"Task J distance wrong.\nManifest:\n{manifest}"
-assert "Task C: active" in manifest, f"Task C should be active.\nManifest:\n{manifest}"
+# Verify structure
+assert "tasks" in data, "JSON manifest missing 'tasks'"
+assert "edges" in data, "JSON manifest missing 'edges'"
+assert "runtime" in data, "JSON manifest missing 'runtime'"
 
-# Verify in-degree (references):
-# Task A: edges from J (j1, j2 both from task j → 1 unique source) + C (c1 → 1 unique source) = 2 references
-# Task B: no edges pointing to it = 0 references
-# Task J: no edges pointing to it = 0 references
-# Task C: no edges pointing to it = 0 references
-assert "Task A: 5 steps ago | 2 references" in manifest, f"Task A references wrong.\nManifest:\n{manifest}"
-assert "Task B: 3 steps ago | 0 references" in manifest, f"Task B references wrong.\nManifest:\n{manifest}"
-assert "Task J: 1 steps ago | 0 references" in manifest, f"Task J references wrong.\nManifest:\n{manifest}"
-assert "Task C: active | 0 references" in manifest, f"Task C references wrong.\nManifest:\n{manifest}"
+# Verify Task States & Metrics
+tasks = data["tasks"]
 
-# Verify step counts
-assert "3 steps" in manifest.split("Task A")[1].split("\n")[0], "Task A should show 3 steps"
-assert "2 steps" in manifest.split("Task B")[1].split("\n")[0], "Task B should show 2 steps"
+# Task A: 3 nodes, inactive. Last node index 2. Total nodes 8. Distance = 7 - 2 = 5.
+# References: j->a, c->a => 2.
+t_a = tasks["a"]
+assert t_a["status"] == "inactive", f"Task A status wrong: {t_a['status']}"
+assert t_a["steps"] == 3, f"Task A steps wrong: {t_a['steps']}"
+assert t_a["distance"] == 5, f"Task A distance wrong: {t_a['distance']}"
+assert t_a["references"] == 2, f"Task A references wrong: {t_a['references']}"
+
+# Task B: 2 nodes, inactive. Last node index 4. Distance = 7 - 4 = 3. Refs 0.
+t_b = tasks["b"]
+assert t_b["status"] == "inactive"
+assert t_b["steps"] == 2
+assert t_b["distance"] == 3
+assert t_b["references"] == 0
+
+# Task J: 2 nodes, inactive. Last node index 6. Distance = 7 - 6 = 1. Refs 0.
+t_j = tasks["j"]
+assert t_j["status"] == "inactive"
+assert t_j["steps"] == 2
+assert t_j["distance"] == 1
+assert t_j["references"] == 0
+
+# Task C: 1 node, active. Distance 0. Refs 0.
+t_c = tasks["c"]
+assert t_c["status"] == "active"
+assert t_c["steps"] == 1
+assert t_c["distance"] == 0
+assert t_c["references"] == 0
+
+# Verify Edges (Dependencies)
+# j -> a and c -> a should exist
+edges = data["edges"]
+expected_edges = sorted(["j -> a", "c -> a"])
+assert edges == expected_edges, f"Edges wrong. Expected {expected_edges}, got {edges}"
+
+# Verify Runtime
+runtime = data["runtime"]
+assert runtime["current_task"] == "c"
+assert runtime["step"] == 9, f"Step should be len(nodes)+1=9, got {runtime['step']}"
 
 # Verify empty graph case
 empty_graph = GraphState(session_id="empty", original_request="test", requests=["test"])
-empty_manifest = ctx._build_manifest(empty_graph)
-assert "no tasks yet" in empty_manifest, f"Empty graph manifest wrong: {empty_manifest}"
+empty_json = ctx._build_manifest(empty_graph)
+empty_data = json.loads(empty_json)
+assert empty_data["tasks"] == {}, "Empty tasks dict expected"
+assert empty_data["edges"] == [], "Empty edges list expected"
+assert empty_data["runtime"]["step"] == 0
 
-print("9. Manifest distance + in-degree OK ✓")
+print("9. Manifest JSON structure & edges OK ✓")
 
 # ---- Test 10: Signal tools ----
 from rdpge.core.models import SIGNAL_TOOLS, ActionDict, ToolCall
@@ -312,8 +341,9 @@ from rdpge.core.models import SIGNAL_TOOLS, ActionDict, ToolCall
 assert "complete" in SIGNAL_TOOLS, "complete should be a signal tool"
 assert "ask_user" in SIGNAL_TOOLS, "ask_user should be a signal tool"
 assert "surrender" in SIGNAL_TOOLS, "surrender should be a signal tool"
+assert "restore_context" in SIGNAL_TOOLS, "restore_context should be a signal tool"
 assert "abort" not in SIGNAL_TOOLS, "abort is developer-side, not in SIGNAL_TOOLS"
-assert len(SIGNAL_TOOLS) == 3, f"Expected 3 signal tools, got {len(SIGNAL_TOOLS)}"
+assert len(SIGNAL_TOOLS) == 4, f"Expected 4 signal tools, got {len(SIGNAL_TOOLS)}"
 
 # Verify ToolCall defaults
 tc = ToolCall(name="complete")
