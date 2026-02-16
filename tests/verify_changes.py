@@ -305,6 +305,54 @@ assert "no tasks yet" in empty_manifest, f"Empty graph manifest wrong: {empty_ma
 
 print("9. Manifest distance + in-degree OK ✓")
 
+# ---- Test 10: Signal tools ----
+from rdpge.core.models import SIGNAL_TOOLS, ActionDict, ToolCall
+
+# Verify signal tools set
+assert "complete" in SIGNAL_TOOLS, "complete should be a signal tool"
+assert "ask_user" in SIGNAL_TOOLS, "ask_user should be a signal tool"
+assert "surrender" in SIGNAL_TOOLS, "surrender should be a signal tool"
+assert "abort" in SIGNAL_TOOLS, "abort should be a signal tool"
+assert len(SIGNAL_TOOLS) == 4, f"Expected 4 signal tools, got {len(SIGNAL_TOOLS)}"
+
+# Verify ToolCall defaults
+tc = ToolCall(name="complete")
+assert tc.args == {}, f"ToolCall args should default to empty dict, got {tc.args}"
+
+tc2 = ToolCall(name="read_file", args={"path": "test.py"})
+assert tc2.args == {"path": "test.py"}, "ToolCall args should accept dict"
+
+# Verify ActionDict requires tool_call (no longer Optional)
+action = ActionDict(
+    node="node-a1",
+    reason="Testing",
+    tool_call=ToolCall(name="complete"),
+)
+assert action.tool_call.name == "complete", "ActionDict should accept ToolCall"
+
+# Verify ActionDict with signal tool
+action2 = ActionDict(
+    node="node-a2",
+    reason="Need help",
+    tool_call=ToolCall(name="ask_user", args={"question": "Which DB?"}),
+)
+assert action2.tool_call.args["question"] == "Which DB?", "Signal tool args should work"
+
+# Verify AgentResult has status field
+from rdpge.core.engine import AgentResult
+import dataclasses
+fields = {f.name for f in dataclasses.fields(AgentResult)}
+assert "status" in fields, "AgentResult should have status field"
+
+# Verify Agent accepts signal_handlers
+from rdpge import SIGNAL_TOOLS as exported_signals
+assert exported_signals == SIGNAL_TOOLS, "SIGNAL_TOOLS should be exported"
+
+agent2 = Agent(llm=FakeLLM(), signal_handlers={"complete": lambda r: None})
+assert "complete" in agent2.signal_handlers, "Agent should accept signal_handlers"
+
+print("10. Signal tools OK ✓")
+
 print("\n" + "=" * 60)
 print("ALL TESTS PASSED ✓")
 print("=" * 60)

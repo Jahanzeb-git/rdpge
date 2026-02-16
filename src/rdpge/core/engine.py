@@ -19,7 +19,7 @@ from typing import Optional, Any
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
-from .models import GraphState, Message, ExecutionResult
+from .models import GraphState, Message, ExecutionResult, SIGNAL_TOOLS, ToolCall
 from .executor import CodeExecutor
 from .graph import GraphStateManager
 from .context import ContextConstructor
@@ -32,6 +32,7 @@ from ..observe.hooks import HookManager
 class AgentResult:
     """Final result returned to the developer after agent completes."""
     success: bool
+    status: str  # "completed", "awaiting_input", "surrendered", "aborted", "max_steps", "error"
     reason: str
     steps: int
     session_id: str
@@ -110,6 +111,7 @@ class ExecutionEngine:
         hooks: HookManager,
         store=None,  # Optional SessionStore
         max_steps: int = 25,
+        signal_handlers: dict = None,  # Developer overrides for signal tools
     ):
         self.llm = llm
         self.registry = registry
@@ -119,6 +121,9 @@ class ExecutionEngine:
         self.max_steps = max_steps
         self.executor = CodeExecutor()
         self.graph_manager = GraphStateManager()
+
+        # Default signal handlers — developers can override via Agent
+        self.signal_handlers = signal_handlers or {}
 
         # Multi-turn state — persists between run() calls
         self.graph: Optional[GraphState] = None
@@ -247,21 +252,145 @@ class ExecutionEngine:
                     ))
                     continue
 
-                # --- 5. Route tool call (if any) ---
+                # --- 5. Route tool call ---
                 tool_output = None
                 tool_name = None
+                signal_result = None
 
-                if execution.action and execution.action.tool_call:
+                if execution.action:
                     tool_name = execution.action.tool_call.name
-                    tool_output = await self.registry.execute_tool(
-                        execution.action.tool_call
-                    )
-                    await self.hooks.emit("tool_called", {
-                        "step": step,
-                        "tool": tool_name,
-                        "args": execution.action.tool_call.args,
-                        "output_length": len(tool_output),
-                    })
+
+                    if tool_name in SIGNAL_TOOLS:
+                        # --- Signal tool: handle internally ---
+                        signal_args = execution.action.tool_call.args
+
+                        # Update graph before returning
+                        node = await self.graph_manager.update_graph(
+                            graph, execution, None
+                        )
+                        node.request_index = request_index
+                        await self._save_state()
+
+                        # Record trace
+                        step_duration = (time.time() - step_start) * 1000
+                        trace.add_step(StepTrace(
+                            step_number=step,
+                            node_id=node.node_id,
+                            task_id=node.task_id,
+                            reason=execution.action.reason,
+                            tool_name=tool_name,
+                            tool_args=signal_args,
+                            tool_output_length=0,
+                            console_output_length=len(execution.console_output),
+                            code_length=len(code),
+                            edge_restored=execution.action.edge,
+                            success=True,
+                            duration_ms=step_duration,
+                        ))
+
+                        await self.hooks.emit("step_end", {
+                            "step": step,
+                            "node_id": node.node_id,
+                            "task_id": node.task_id,
+                            "reason": execution.action.reason,
+                            "tool": tool_name,
+                            "duration_ms": step_duration,
+                        })
+
+                        # --- Handle each signal type ---
+                        if tool_name == "complete":
+                            trace.finalize()
+                            # Call override if developer provided one
+                            if "complete" in self.signal_handlers:
+                                await self.signal_handlers["complete"](execution.action.reason)
+                            await self.hooks.emit("complete", {
+                                "session_id": session_id,
+                                "steps": step,
+                                "reason": execution.action.reason,
+                                "summary": trace.summary(),
+                            })
+                            return AgentResult(
+                                success=True,
+                                status="completed",
+                                reason=execution.action.reason,
+                                steps=step,
+                                session_id=session_id,
+                                trace=trace,
+                                graph=graph,
+                            )
+
+                        elif tool_name == "ask_user":
+                            trace.finalize()
+                            question = signal_args.get("question", execution.action.reason)
+                            # Call override if developer provided one
+                            if "ask_user" in self.signal_handlers:
+                                await self.signal_handlers["ask_user"](question)
+                            await self.hooks.emit("ask_user", {
+                                "session_id": session_id,
+                                "step": step,
+                                "question": question,
+                            })
+                            return AgentResult(
+                                success=True,
+                                status="awaiting_input",
+                                reason=question,
+                                steps=step,
+                                session_id=session_id,
+                                trace=trace,
+                                graph=graph,
+                            )
+
+                        elif tool_name == "surrender":
+                            trace.finalize()
+                            surrender_reason = signal_args.get("reason", execution.action.reason)
+                            if "surrender" in self.signal_handlers:
+                                await self.signal_handlers["surrender"](surrender_reason)
+                            await self.hooks.emit("surrender", {
+                                "session_id": session_id,
+                                "step": step,
+                                "reason": surrender_reason,
+                            })
+                            return AgentResult(
+                                success=False,
+                                status="surrendered",
+                                reason=surrender_reason,
+                                steps=step,
+                                session_id=session_id,
+                                trace=trace,
+                                graph=graph,
+                            )
+
+                        elif tool_name == "abort":
+                            trace.finalize()
+                            abort_reason = signal_args.get("reason", execution.action.reason)
+                            if "abort" in self.signal_handlers:
+                                await self.signal_handlers["abort"](abort_reason)
+                            await self.hooks.emit("abort", {
+                                "session_id": session_id,
+                                "step": step,
+                                "reason": abort_reason,
+                            })
+                            return AgentResult(
+                                success=False,
+                                status="aborted",
+                                reason=abort_reason,
+                                steps=step,
+                                session_id=session_id,
+                                trace=trace,
+                                graph=graph,
+                            )
+
+                    else:
+                        # --- Regular tool: execute via registry ---
+                        tool_output = await self.registry.execute_tool(
+                            execution.action.tool_call
+                        )
+                        await self.hooks.emit("tool_called", {
+                            "step": step,
+                            "tool": tool_name,
+                            "args": execution.action.tool_call.args,
+                            "output_length": len(tool_output),
+                        })
 
                 # --- 6. Update graph ---
                 node = await self.graph_manager.update_graph(
@@ -299,19 +428,15 @@ class ExecutionEngine:
                     "duration_ms": step_duration,
                 })
 
-                # --- 8. Check completion ---
-                if execution.action and execution.action.tool_call is None:
-                    # LLM signaled completion (tool_call is None)
+                # --- 8. Check completion (backwards compat: tool_call=None) ---
+                # New design uses explicit signal tools, but if LLM outputs
+                # tool_call=None, treat as complete for robustness.
+                if execution.action and not hasattr(execution.action, 'tool_call'):
                     trace.finalize()
-                    await self.hooks.emit("complete", {
-                        "session_id": session_id,
-                        "steps": step,
-                        "reason": execution.action.reason,
-                        "summary": trace.summary(),
-                    })
                     return AgentResult(
                         success=True,
-                        reason=execution.action.reason,
+                        status="completed",
+                        reason=execution.action.reason if execution.action else "Task completed",
                         steps=step,
                         session_id=session_id,
                         trace=trace,
@@ -322,6 +447,7 @@ class ExecutionEngine:
             trace.finalize()
             return AgentResult(
                 success=False,
+                status="max_steps",
                 reason=f"Agent reached maximum step limit ({self.max_steps})",
                 steps=step,
                 session_id=session_id,
@@ -339,6 +465,7 @@ class ExecutionEngine:
             })
             return AgentResult(
                 success=False,
+                status="error",
                 reason=f"Fatal error: {str(e)}",
                 steps=step,
                 session_id=session_id,

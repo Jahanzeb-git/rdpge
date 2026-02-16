@@ -41,6 +41,9 @@ class Agent:
         instructions_file: Path to a .md file containing agent instructions
         max_steps: Maximum execution steps per run (default: 25)
         store: SessionStore backend for persistence (default: InMemoryStore)
+        signal_handlers: Override built-in signal tool behavior. Dict mapping
+            signal name to async handler function.
+            Example: {"ask_user": my_ask_handler, "complete": my_complete_handler}
     """
 
     def __init__(
@@ -51,10 +54,12 @@ class Agent:
         instructions_file: Optional[str] = None,
         max_steps: int = 25,
         store=None,
+        signal_handlers: dict = None,
     ):
         self.llm = llm
         self.max_steps = max_steps
         self.store = store or InMemoryStore()
+        self.signal_handlers = signal_handlers or {}
 
         # Build tool registry
         self.registry = ToolRegistry()
@@ -81,7 +86,7 @@ class Agent:
         # Hook manager
         self.hooks = HookManager()
 
-        # Engine (with store for persistence)
+        # Engine (with store for persistence and signal handlers)
         self._engine = ExecutionEngine(
             llm=self.llm,
             registry=self.registry,
@@ -89,6 +94,7 @@ class Agent:
             hooks=self.hooks,
             store=self.store,
             max_steps=self.max_steps,
+            signal_handlers=self.signal_handlers,
         )
 
     # ---- Session Management ----

@@ -50,7 +50,7 @@ action = {
 | `node` | `str` | Node ID for this step. Format: `node-{task_letter}{step_number}` |
 | `edge` | `str` or `None` | Restore a blurred task's tool outputs. Format: `node-{task_letter}` (e.g., `"node-a"`) |
 | `reason` | `str` | User-facing message — the ONLY thing the user sees. Explain, report, or chat here. |
-| `tool_call` | `dict` or `None` | Tool to execute. Set to `None` to signal task completion. |
+| `tool_call` | `dict` | Tool to execute. Either a registered tool or a signal tool. |
 
 ---
 
@@ -122,17 +122,34 @@ If your code has a syntax error, runtime error, or produces an invalid `action` 
 
 ---
 
-## TASK COMPLETION
+## SIGNAL TOOLS
 
-When the task is fully done, set `tool_call` to `None`:
+These tools are built into the runtime. They control execution flow.
+
+| Signal | Args | Effect |
+|--------|------|--------|
+| `complete` | `{}` | Signals that the task is done. The execution loop ends. |
+| `ask_user` | `{"question": str}` | Pauses execution. The question is returned to the caller. Execution resumes when the user responds via a new run() call. |
+| `surrender` | `{"reason": str}` | Stops execution. The task cannot be accomplished with available tools or information. |
+| `abort` | `{"reason": str}` | Immediately terminates execution. |
 
 ```python
-# All work complete — summarize for the user
+# Task finished — summarize for the user
 action = {
     "node": "node-a4",
     "edge": None,
     "reason": "Bug fixed. The login function now validates both username and password.",
-    "tool_call": None
+    "tool_call": {"name": "complete", "args": {}}
+}
+```
+
+```python
+# Need clarification before proceeding
+action = {
+    "node": "node-a2",
+    "edge": None,
+    "reason": "Which database are you using?",
+    "tool_call": {"name": "ask_user", "args": {"question": "PostgreSQL, MySQL, or SQLite?"}}
 }
 ```
 
@@ -154,8 +171,8 @@ In the conversation you will see:
 1. Your ENTIRE response is a ```python``` code block. No text before or after it. Ever.
 2. The dictionary variable MUST be named `action`. Not `result`, not `output`, not `response`. Exactly `action`.
 3. Use comments (#) for your reasoning. Use the `reason` field to communicate with the user.
-4. One `action` per response. One `tool_call` per action (or `None` to finish).
-5. Only use tools listed in AVAILABLE TOOLS.
+4. One `action` per response. One `tool_call` per action.
+5. Only use tools listed in AVAILABLE TOOLS or the SIGNAL TOOLS above.
 6. Do NOT fabricate tool outputs. Wait for actual execution results.
 7. You may write any valid Python to assist your thinking, as long as `action` is properly defined.
 

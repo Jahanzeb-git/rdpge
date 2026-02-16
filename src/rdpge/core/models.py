@@ -13,16 +13,21 @@ from typing import Optional, Any
 from pydantic import BaseModel
 from datetime import datetime
 
+# ------ SIGNAL TOOLS ------
+# Built-in tool names recognized by the engine as execution signals.
+# These are intercepted before reaching the ToolRegistry.
+SIGNAL_TOOLS = frozenset({"complete", "ask_user", "surrender", "abort"})
+
 # ------ LLM INTERFACE STRUCTURES ------
 class ToolCall(BaseModel):
     name: str
-    args: dict[str, Any]
+    args: dict[str, Any] = {}
 
 class ActionDict(BaseModel):
     node: str
     edge: Optional[str] = None
     reason: str
-    tool_call: Optional[ToolCall] = None
+    tool_call: ToolCall
 
 # ------ INTERNAL STRUCTURES ------
 @dataclass

@@ -25,7 +25,7 @@
 from .agent import Agent
 from .tools.base import tool, ToolWrapper, BaseTool, ToolSpec
 from .core.engine import AgentResult
-from .core.models import Message, GraphState, NodeState
+from .core.models import Message, GraphState, NodeState, SIGNAL_TOOLS
 from .storage.base import SessionStore, InMemoryStore
 
 __version__ = "0.1.0"
@@ -40,6 +40,7 @@ __all__ = [
     "Message",
     "GraphState",
     "NodeState",
+    "SIGNAL_TOOLS",
     "SessionStore",
     "InMemoryStore",
 ]
