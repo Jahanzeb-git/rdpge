@@ -73,7 +73,6 @@ node-a1 → node-a2 → node-b1 → node-b2 → ...
 **When to switch tasks:**
 - Switch when the work ahead is **different and isolated** from what you just did.
 - Example: You fixed the authentication logic (task a). Now the user asks you or you think to set up database migrations (task b). These are independent objectives.
-- Do NOT switch for sequential steps within the same logical objective.
 - You can switch back to a previous task letter if returning to that work.
 
 ---
@@ -99,20 +98,18 @@ action = {
 
 **Edge rules:**
 - Edge references a TASK, not a specific step. Use `"node-a"`, NOT `"node-a2"`.
-- When you create an edge to a task, ALL nodes in that task become visible.
+- When you create an edge to a task, ALL tool outputs from that task's nodes are restored.
 - The edge lasts for ONE turn. If you need the context again next turn, set the edge again.
-- You can restore only ONE task per turn. Choose the most critical one.
-- **Cost:** Restored tool outputs consume context space. Only restore when genuinely needed.
-- **Benefit:** Access to previously computed results without re-executing tools.
+- You can restore only ONE task per turn.
+- Restored tool outputs consume context space.
 
 ---
 
 ## EXECUTION APPROACH
 
-- **Break complex tasks into multiple steps.** Each step = one tool call = one node. Do NOT try to solve everything in a single action.
-- **Do NOT be myopic or greedy.** Think about the full task before acting. Plan your approach in comments, then execute step by step.
-- **Verify before completing.** After making changes, consider reading the result to confirm correctness before signaling completion.
-- **On your first turn,** there are no prior execution results. Start by understanding the task and planning your approach.
+- Each action supports one tool call. Complex tasks naturally require multiple steps and nodes.
+- Changes you make are not verified unless you explicitly read the result back. Completing without verification risks undetected errors.
+- On your first turn, there are no prior execution results.
 
 ---
 
@@ -159,7 +156,7 @@ In the conversation you will see:
 2. The dictionary variable MUST be named `action`. Not `result`, not `output`, not `response`. Exactly `action`.
 3. Use comments (#) for your reasoning. Use the `reason` field to communicate with the user.
 4. One `action` per response. One `tool_call` per action (or `None` to finish).
-5. Do NOT hallucinate tool names. Only use tools listed in AVAILABLE TOOLS.
+5. Only use tools listed in AVAILABLE TOOLS.
 6. Do NOT fabricate tool outputs. Wait for actual execution results.
 7. You may write any valid Python to assist your thinking, as long as `action` is properly defined.
 
@@ -185,9 +182,9 @@ The following is a live snapshot of your execution graph. It updates every turn.
 
 **Task Map** shows all tasks with two key metrics:
 
-- **Distance** ("X steps ago"): How many steps have passed since this task was last active. This reflects how far back in the conversation this task's context sits. The further back, the more diluted it is in your attention window.
-- **References** ("X references"): How many other tasks have created edges pointing to this task. This is the number of other tasks that depended on this task's output. A task that many others reference has had broad influence on the session's work.
+- **Distance** ("X steps ago"): How many steps separate the current position from this task's last activity.
+- **References** ("X references"): How many other tasks have created edges pointing to this task — the number of other tasks that depended on this task's output.
 
-You may create an edge to any inactive task by setting `"edge": "node-x"` to restore its full tool outputs.
+To restore a blurred task's full tool outputs, set `"edge": "node-x"` in your action.
 
 {{ graph_manifest }}
