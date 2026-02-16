@@ -308,12 +308,12 @@ print("9. Manifest distance + in-degree OK ✓")
 # ---- Test 10: Signal tools ----
 from rdpge.core.models import SIGNAL_TOOLS, ActionDict, ToolCall
 
-# Verify signal tools set
+# Verify signal tools set (3 LLM-callable signals, abort is developer-side)
 assert "complete" in SIGNAL_TOOLS, "complete should be a signal tool"
 assert "ask_user" in SIGNAL_TOOLS, "ask_user should be a signal tool"
 assert "surrender" in SIGNAL_TOOLS, "surrender should be a signal tool"
-assert "abort" in SIGNAL_TOOLS, "abort should be a signal tool"
-assert len(SIGNAL_TOOLS) == 4, f"Expected 4 signal tools, got {len(SIGNAL_TOOLS)}"
+assert "abort" not in SIGNAL_TOOLS, "abort is developer-side, not in SIGNAL_TOOLS"
+assert len(SIGNAL_TOOLS) == 3, f"Expected 3 signal tools, got {len(SIGNAL_TOOLS)}"
 
 # Verify ToolCall defaults
 tc = ToolCall(name="complete")
@@ -351,7 +351,17 @@ assert exported_signals == SIGNAL_TOOLS, "SIGNAL_TOOLS should be exported"
 agent2 = Agent(llm=FakeLLM(), signal_handlers={"complete": lambda r: None})
 assert "complete" in agent2.signal_handlers, "Agent should accept signal_handlers"
 
-print("10. Signal tools OK ✓")
+# Verify developer-side abort mechanism
+assert hasattr(agent2, 'abort'), "Agent should have abort() method"
+agent2.abort("User cancelled")
+assert agent2._engine._abort_requested, "abort() should set engine flag"
+assert agent2._engine._abort_reason == "User cancelled", "abort() should set reason"
+
+# Reset clears abort state
+agent2.new_session()
+assert not agent2._engine._abort_requested, "reset should clear abort flag"
+
+print("10. Signal tools + abort mechanism OK ✓")
 
 print("\n" + "=" * 60)
 print("ALL TESTS PASSED ✓")

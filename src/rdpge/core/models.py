@@ -16,7 +16,8 @@ from datetime import datetime
 # ------ SIGNAL TOOLS ------
 # Built-in tool names recognized by the engine as execution signals.
 # These are intercepted before reaching the ToolRegistry.
-SIGNAL_TOOLS = frozenset({"complete", "ask_user", "surrender", "abort"})
+# Note: 'abort' is NOT here — it's a developer-side mechanism, not LLM-callable.
+SIGNAL_TOOLS = frozenset({"complete", "ask_user", "surrender"})
 
 # ------ LLM INTERFACE STRUCTURES ------
 class ToolCall(BaseModel):

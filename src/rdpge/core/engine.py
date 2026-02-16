@@ -125,6 +125,10 @@ class ExecutionEngine:
         # Default signal handlers — developers can override via Agent
         self.signal_handlers = signal_handlers or {}
 
+        # Abort mechanism — developer-side, not LLM-side
+        self._abort_requested = False
+        self._abort_reason = ""
+
         # Multi-turn state — persists between run() calls
         self.graph: Optional[GraphState] = None
         self.session_id: Optional[str] = None
@@ -133,6 +137,8 @@ class ExecutionEngine:
         """Clear session state for a fresh start."""
         self.graph = None
         self.session_id = None
+        self._abort_requested = False
+        self._abort_reason = ""
 
     def set_graph(self, graph: GraphState) -> None:
         """Set graph state (used by load_session)."""
@@ -144,6 +150,21 @@ class ExecutionEngine:
         if self.store and self.graph:
             from ..storage.base import serialize_graph
             await self.store.save(self.session_id, serialize_graph(self.graph))
+
+    def request_abort(self, reason: str = "User aborted execution") -> None:
+        """
+        Request the engine to abort at the next loop iteration.
+
+        This is a developer-side mechanism — called from outside
+        the engine (e.g., from a UI button or hook callback).
+        The abort is recorded in graph.last_error so the LLM
+        sees it on the next turn.
+
+        Args:
+            reason: Human-readable reason for the abort
+        """
+        self._abort_requested = True
+        self._abort_reason = reason
 
     async def run(self, request: str) -> AgentResult:
         """
@@ -183,11 +204,35 @@ class ExecutionEngine:
         )
 
         step = 0
+        self._abort_requested = False  # Reset abort flag at start of each run
 
         try:
             while step < self.max_steps:
                 step += 1
                 step_start = time.time()
+
+                # --- Check abort flag (set by developer via agent.abort()) ---
+                if self._abort_requested:
+                    # Record in graph so LLM knows in next turn
+                    graph.last_error = f"[USER ABORT] {self._abort_reason}"
+                    await self._save_state()
+                    trace.finalize()
+                    await self.hooks.emit("abort", {
+                        "session_id": session_id,
+                        "step": step,
+                        "reason": self._abort_reason,
+                    })
+                    if "abort" in self.signal_handlers:
+                        await self.signal_handlers["abort"](self._abort_reason)
+                    return AgentResult(
+                        success=False,
+                        status="aborted",
+                        reason=self._abort_reason,
+                        steps=step - 1,  # Don't count the aborted step
+                        session_id=session_id,
+                        trace=trace,
+                        graph=graph,
+                    )
 
                 # --- Emit step_start hook ---
                 await self.hooks.emit("step_start", {
@@ -354,26 +399,6 @@ class ExecutionEngine:
                                 success=False,
                                 status="surrendered",
                                 reason=surrender_reason,
-                                steps=step,
-                                session_id=session_id,
-                                trace=trace,
-                                graph=graph,
-                            )
-
-                        elif tool_name == "abort":
-                            trace.finalize()
-                            abort_reason = signal_args.get("reason", execution.action.reason)
-                            if "abort" in self.signal_handlers:
-                                await self.signal_handlers["abort"](abort_reason)
-                            await self.hooks.emit("abort", {
-                                "session_id": session_id,
-                                "step": step,
-                                "reason": abort_reason,
-                            })
-                            return AgentResult(
-                                success=False,
-                                status="aborted",
-                                reason=abort_reason,
                                 steps=step,
                                 session_id=session_id,
                                 trace=trace,

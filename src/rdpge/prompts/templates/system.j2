@@ -129,12 +129,11 @@ These tools are built into the runtime. They control execution flow.
 | Signal | Args | Effect |
 |--------|------|--------|
 | `complete` | `{}` | Signals that the task is done. The execution loop ends. |
-| `ask_user` | `{"question": str}` | Pauses execution. The question is returned to the caller. Execution resumes when the user responds via a new run() call. |
+| `ask_user` | `{"question": str}` | Pauses execution. The question is returned to the caller. Execution resumes when the user responds. |
 | `surrender` | `{"reason": str}` | Stops execution. The task cannot be accomplished with available tools or information. |
-| `abort` | `{"reason": str}` | Immediately terminates execution. |
 
 ```python
-# Task finished — summarize for the user
+# Task finished summarize for the user
 action = {
     "node": "node-a4",
     "edge": None,

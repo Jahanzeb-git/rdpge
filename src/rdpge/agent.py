@@ -124,6 +124,20 @@ class Agent:
         """
         self._engine.reset()
 
+    def abort(self, reason: str = "User aborted execution") -> None:
+        """
+        Abort the currently running execution.
+
+        Call this from a hook callback, a UI handler, or another
+        coroutine to forcefully stop the agent at the next loop iteration.
+        The abort reason is recorded in the graph so the LLM knows
+        about it on the next turn.
+
+        Args:
+            reason: Human-readable reason for the abort
+        """
+        self._engine.request_abort(reason)
+
     async def load_session(self, session_id: str) -> bool:
         """
         Load a previously saved session from the store.
