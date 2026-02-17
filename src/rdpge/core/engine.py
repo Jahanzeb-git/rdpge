@@ -468,7 +468,7 @@ class ExecutionEngine:
         Looks for ```python ... ``` blocks. Returns the code
         inside the first block, or None if no block found.
         """
-        pattern = r"```python\s*\n(.*?)```"
+        pattern = r"```python\s*\n(.*)```"
         match = re.search(pattern, response, re.DOTALL)
         if match:
             return match.group(1).strip()
