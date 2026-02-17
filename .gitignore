@@ -34,3 +34,7 @@ Thumbs.db
 .pytest_cache/
 htmlcov/
 .coverage
+
+# Local Examples
+examples/
+

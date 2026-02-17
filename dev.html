@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RDPGE Developer Documentation</title>
+    <!-- PrismJS for syntax highlighting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
+    <!-- Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            /* Light Theme */
+            --bg: #ffffff;
+            --bg-sidebar: #f8fafc;
+            --bg-card: #f1f5f9;
+            --text: #334155;
+            --text-muted: #64748b;
+            --title: #0f172a;
+            --border: #e2e8f0;
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
+            --code-bg: #1e293b;
+            --sidebar-width: 280px;
+        }
+
+        [data-theme="dark"] {
+            /* Dark Theme */
+            --bg: #0f172a;
+            --bg-sidebar: #1e293b;
+            --bg-card: #1e293b;
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --title: #ffffff;
+            --border: #334155;
+            --accent: #3b82f6;
+            --accent-hover: #60a5fa;
+            --code-bg: #020617;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            display: flex;
+            min-height: 100vh;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border);
+            height: 100vh;
+            position: fixed;
+            overflow-y: auto;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            transition: background 0.3s, border-color 0.3s;
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--title);
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .logo i {
+            color: var(--accent);
+        }
+
+        .nav-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .nav-header {
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            letter-spacing: 0.05em;
+        }
+
+        .nav-link {
+            display: block;
+            color: var(--text);
+            text-decoration: none;
+            padding: 0.4rem 0;
+            font-size: 0.95rem;
+            transition: color 0.2s;
+            border-left: 2px solid transparent;
+            padding-left: 0.8rem;
+            margin-left: -0.8rem;
+        }
+
+        .nav-link:hover {
+            color: var(--accent);
+        }
+
+        .nav-link.active {
+            color: var(--accent);
+            font-weight: 600;
+            border-left-color: var(--accent);
+        }
+
+        /* Toggles */
+        .controls {
+            margin-top: auto;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 1rem;
+        }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: color 0.2s;
+        }
+
+        .icon-btn:hover {
+            color: var(--title);
+        }
+
+        /* Main Content */
+        .main {
+            margin-left: var(--sidebar-width);
+            flex: 1;
+            padding: 4rem 15%;
+            /* Centered reading experience */
+            max-width: 1400px;
+        }
+
+        /* Typography */
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: var(--title);
+            letter-spacing: -0.02em;
+        }
+
+        h1 small {
+            display: block;
+            font-size: 1.25rem;
+            font-weight: 400;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+
+        h2 {
+            font-size: 1.8rem;
+            margin: 3.5rem 0 1.5rem;
+            color: var(--title);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            letter-spacing: -0.01em;
+        }
+
+        h3 {
+            font-size: 1.4rem;
+            margin: 2.5rem 0 1rem;
+            color: var(--title);
+            font-weight: 600;
+        }
+
+        h4 {
+            font-size: 1.1rem;
+            margin: 1.5rem 0 0.8rem;
+            color: var(--title);
+            font-weight: 600;
+        }
+
+        p {
+            margin-bottom: 1rem;
+            color: var(--text);
+        }
+
+        a {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        ul,
+        ol {
+            margin: 1rem 0 1rem 1.5rem;
+            color: var(--text);
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        /* Code Blocks */
+        pre {
+            background: var(--code-bg) !important;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin: 1.5rem 0;
+            padding: 1.25rem !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9em;
+        }
+
+        p code,
+        li code,
+        td code {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--accent);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.85em;
+        }
+
+        /* Components */
+        .callout {
+            background: rgba(59, 130, 246, 0.05);
+            border-left: 4px solid var(--accent);
+            padding: 1.5rem;
+            border-radius: 0 8px 8px 0;
+            margin: 2rem 0;
+        }
+
+        .callout h4 {
+            margin-top: 0;
+            color: var(--accent);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2rem 0;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        th {
+            background: var(--bg-card);
+            color: var(--title);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+        }
+
+        /* API Signature Styles */
+        .api-sig {
+            background: var(--bg-card);
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            margin: 1rem 0;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text);
+            overflow-x: auto;
+        }
+
+        .method-list {
+            display: grid;
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        /* Copy Button for Code */
+        .copy-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: #fff;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        pre:hover .copy-btn {
+            opacity: 1;
+        }
+    </style>
+</head>
+
+<body data-theme="dark">
+
+    <nav class="sidebar">
+        <div class="logo"><i class="fa-solid fa-code-branch"></i> RDPGE Docs</div>
+
+        <div class="nav-group">
+            <div class="nav-header">Getting Started</div>
+            <a href="#intro" class="nav-link active">Introduction</a>
+            <a href="#install" class="nav-link">Installation</a>
+            <a href="#quickstart" class="nav-link">Quick Start</a>
+            <a href="#architecture" class="nav-link">Architecture</a>
+        </div>
+
+        <div class="nav-group">
+            <div class="nav-header">Core Concepts</div>
+            <a href="#agent-config" class="nav-link">Agent Configuration</a>
+            <a href="#tools" class="nav-link">Defining Tools</a>
+            <a href="#multi-turn" class="nav-link">Multi-Turn Execution</a>
+            <a href="#signals" class="nav-link">Signals & Control</a>
+        </div>
+
+        <div class="nav-group">
+            <div class="nav-header">Advanced</div>
+            <a href="#llm-adapters" class="nav-link">LLM Adapters</a>
+            <a href="#hooks" class="nav-link">Observability & Hooks</a>
+            <a href="#persistence" class="nav-link">Persistence (DB)</a>
+        </div>
+
+        <div class="nav-group">
+            <div class="nav-header">API Reference</div>
+            <a href="#api-agent" class="nav-link">Agent API</a>
+            <a href="#api-result" class="nav-link">Result Object</a>
+        </div>
+
+        <div class="controls">
+            <button class="icon-btn" id="theme-toggle" title="Toggle Theme">
+                <i class="fa-solid fa-moon"></i>
+            </button>
+            <a href="https://github.com/jahanzeb-git/RDPGE-1" class="icon-btn" target="_blank" title="View on GitHub">
+                <i class="fa-brands fa-github"></i>
+            </a>
+        </div>
+    </nav>
+
+    <main class="main">
+
+        <!-- INTRODUCTION -->
+        <section id="intro">
+            <h1>RDPGE <small>Runtime Dynamic & Probabilistic Graph Execution</small></h1>
+            <p>
+                RDPGE is a production-grade agentic framework designed to solve the "Contextual Myopia" problem in
+                classic ReAct loops.
+                By treating execution as a dynamic graph rather than a flat list, it enables agents to maintain
+                massive context windows through <strong>selective blurring</strong> and <strong>active recall</strong>.
+            </p>
+
+            <div class="callout">
+                <h4>Python-First Philosophy</h4>
+                <p>
+                    RDPGE replaces JSON tool calls (which are prone to formatting errors) with <strong>Python Code
+                        Generation</strong>.
+                    Instead of hoping the LLM formats JSON correctly, we let it write Python code
+                    that we sandboxed-execute.
+                </p>
+            </div>
+        </section>
+
+        <!-- INSTALLATION -->
+        <section id="install">
+            <h2>Installation</h2>
+            <pre><code class="language-bash">pip install rdpge</code></pre>
+            <p>Requirements: Python 3.10+</p>
+        </section>
+
+        <!-- QUICK START -->
+        <section id="quickstart">
+            <h2>Quick Start</h2>
+            <p>Here is a complete example of creating an agent that can read files and perform reasoning.</p>
+
+            <pre><code class="language-python">import asyncio
+from rdpge import Agent, tool
+from rdpge.llm import OpenAIAdapter, LLMConfig
+
+# 1. Define Tools
+@tool("Read file contents")
+def read_file(path: str) -> str:
+    """Reads a file from the disk."""
+    try:
+        with open(path, 'r') as f:
+            return f.read()
+    except FileNotFoundError:
+        return "File not found."
+
+# 2. Configure LLM
+llm = OpenAIAdapter(LLMConfig(
+    model="gpt-4o",
+    api_key="your-api-key"
+))
+
+# 3. Initialize Agent
+agent = Agent(
+    llm=llm,
+    tools=[read_file],
+    instructions="You are a helpful coding assistant."
+)
+
+# 4. Run Agent
+async def main():
+    print("Running agent...")
+    result = await agent.run("Read 'README.md' and summarize it.")
+    
+    print(f"Status: {result.status}")
+    print(f"Answer: {result.reason}")
+
+if __name__ == "__main__":
+    asyncio.run(main())</code></pre>
+        </section>
+
+        <!-- AGENT CONFIGURATION -->
+        <section id="agent-config">
+            <h2>Agent Configuration</h2>
+            <p>The <code>Agent</code> class is highly configurable. You can load instructions from files and strict type
+                checking.</p>
+
+            <h3>Loading Instructions from File</h3>
+            <p>Instead of hardcoding big prompt strings, you can load them from a markdown file. This is best practice
+                for production agents.</p>
+
+            <pre><code class="language-python">agent = Agent(
+    llm=llm,
+    tools=[...],
+    instructions_file="./prompts/coder_instructions.md" 
+)</code></pre>
+            <p>This allows you to version control your implementation prompts separately from your code.</p>
+        </section>
+
+        <!-- MULTI-TURN EXECUTION -->
+        <section id="multi-turn">
+            <h2>Multi-Turn Execution</h2>
+            <p>RDPGE supports long-running sessions where the agent remembers previous interactions. The context is
+                automatically managed.</p>
+
+            <pre><code class="language-python"># First turn: Starts a new session
+result1 = await agent.run("Scan the codebase for auth issues.")
+print(f"Session ID: {result1.session_id}")
+
+# Second turn: Continues the SAME session
+# The agent remembers what it scanned in the first turn!
+result2 = await agent.run("Fix the issue you found in auth.py")
+</code></pre>
+
+            <h3>Session Management</h3>
+            <ul>
+                <li><code>agent.new_session()</code>: Wipes memory to start fresh.</li>
+                <li><code>agent.session_id</code>: Access the current active session ID.</li>
+            </ul>
+        </section>
+
+        <!-- TOOLS -->
+        <section id="tools">
+            <h2>Defining Tools</h2>
+            <p>Tools are the bridge between the LLM and the outside world. RDPGE provides a flexible way to define them.
+            </p>
+
+            <h3>The <code>@tool</code> Decorator</h3>
+            <p>The simplest way. It automatically uses type hints and docstrings for the LLM schema.</p>
+            <pre><code class="language-python">@tool()
+def calculate(a: int, b: int) -> int:
+    """Adds two numbers."""
+    return a + b</code></pre>
+
+            <h3><code>BaseTool</code> Class</h3>
+            <p>For tools requiring state (like database connections), subclass <code>BaseTool</code>. This gives you
+                <code>setup()</code> and <code>teardown()</code> lifecycle methods.</p>
+            <pre><code class="language-python">from rdpge import BaseTool
+
+class DatabaseTool(BaseTool):
+    name = "query_db"
+    description = "Execute SQL query"
+
+    async def setup(self):
+        self.conn = await connect_to_db()
+
+    async def execute(self, query: str) -> str:
+        return await self.conn.query(query)
+
+    async def teardown(self):
+        await self.conn.close()</code></pre>
+        </section>
+
+        <!-- SIGNALS -->
+        <section id="signals">
+            <h2>Signals & Control</h2>
+            <p>RDPGE provides built-in "Signal Tools" to control the execution flow.</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Signal</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>complete</code></td>
+                        <td>Task finished successfully. Ends the loop.</td>
+                    </tr>
+                    <tr>
+                        <td><code>ask_user</code></td>
+                        <td>Agent pauses execution to ask the user a question. Returns status
+                            <code>awaiting_input</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>surrender</code></td>
+                        <td>Agent gives up. Ends the loop with failure status.</td>
+                    </tr>
+                    <tr>
+                        <td><code>restore_context</code></td>
+                        <td>Restores the "blurred" context of a previous task. Used for memory recall.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- HOOKS & OBSERVABILITY -->
+        <section id="hooks">
+            <h2>Observability & Hooks</h2>
+            <p>RDPGE is designed to be transparent. You can hook into every event of the agent's lifecycle.</p>
+
+            <h3>Event Hooks</h3>
+            <pre><code class="language-python">@agent.on("step_start")
+async def on_step(data):
+    # data = { "step": 1, "session_id": "...", "active_node": "..." }
+    print(f"Starting Step {data['step']}")
+
+@agent.on("tool_called")
+async def on_tool(data):
+    # data = { "tool": "read_file", "args": {...}, "output_length": 120 }
+    print(f"Tool Used: {data['tool']}")
+
+@agent.on("error")
+async def on_error(data):
+    print(f"Error at step {data['step']}: {data['error']}")</code></pre>
+
+            <h3>Exporting Execution Graphs</h3>
+            <p>You can export the entire execution graph (nodes, edges, code, output) to a JSON file for analysis or
+                visualization.</p>
+            <pre><code class="language-python">result = await agent.run(...)
+path = result.export_graph("./traces/session_dump.json")
+print(f"Graph dumped to: {path}")</code></pre>
+        </section>
+
+        <!-- PERSISTENCE -->
+        <section id="persistence">
+            <h2>Persistence</h2>
+            <p>By default, RDPGE uses an in-memory store. For production apps, you should persist state to a database
+                (Redis, Postgres, etc.) so sessions survive restarts.</p>
+
+            <h3>Implementing a Custom Store</h3>
+            <p>Implement the <code>SessionStore</code> protocol:</p>
+            <pre><code class="language-python">from rdpge.storage.base import SessionStore
+import redis.asyncio as redis
+import json
+
+class RedisStore(SessionStore):
+    def __init__(self, url):
+        self.r = redis.from_url(url)
+
+    async def save(self, session_id: str, state: dict):
+        # State is a simple dict, easy to serialize
+        await self.r.set(session_id, json.dumps(state))
+
+    async def load(self, session_id: str) -> dict:
+        data = await self.r.get(session_id)
+        return json.loads(data) if data else None
+
+    async def delete(self, session_id: str):
+        await self.r.delete(session_id)
+
+    async def list_sessions(self) -> list[str]:
+        keys = await self.r.keys("*")
+        return [k.decode() for k in keys]
+
+# Usage
+agent = Agent(..., store=RedisStore("redis://localhost"))</code></pre>
+        </section>
+
+        <!-- API REFERENCE -->
+        <section id="api-agent">
+            <h2>API Reference: Agent</h2>
+
+            <div class="api-sig">
+                class <strong>Agent</strong>(llm, tools=None, instructions="", instructions_file=None, max_steps=25,
+                store=None)
+            </div>
+
+            <div class="method-list">
+                <div class="method-item">
+                    <h4>run(request: str) -> AgentResult</h4>
+                    <p>Executes the agent loop. If called multiple times with the same instance, it continues the same
+                        session.</p>
+                </div>
+
+                <div class="method-item">
+                    <h4>new_session()</h4>
+                    <p>Resets the internal state to start a fresh conversation context (new session ID).</p>
+                </div>
+
+                <div class="method-item">
+                    <h4>abort(reason: str)</h4>
+                    <p>Signals the agent to stop at the next step. Useful for UI "Stop" buttons.</p>
+                </div>
+
+                <div class="method-item">
+                    <h4>load_session(session_id: str) -> bool</h4>
+                    <p>Loads a past session from the Store. Returns True if found.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="api-result">
+            <h2>API Reference: AgentResult</h2>
+            <div class="api-sig">
+                @dataclass <strong>AgentResult</strong>
+            </div>
+
+            <table>
+                <tr>
+                    <th>Attribute</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><code>success</code></td>
+                    <td>bool</td>
+                    <td>True if completed successfully.</td>
+                </tr>
+                <tr>
+                    <td><code>status</code></td>
+                    <td>str</td>
+                    <td>'completed', 'surrendered', 'aborted', 'awaiting_input', 'max_steps'</td>
+                </tr>
+                <tr>
+                    <td><code>reason</code></td>
+                    <td>str</td>
+                    <td>Final explanation or answer from the agent.</td>
+                </tr>
+                <tr>
+                    <td><code>steps</code></td>
+                    <td>int</td>
+                    <td>Total steps taken.</td>
+                </tr>
+                <tr>
+                    <td><code>session_id</code></td>
+                    <td>str</td>
+                    <td>Unique ID of this session.</td>
+                </tr>
+                <tr>
+                    <td><code>trace</code></td>
+                    <td>SessionTrace</td>
+                    <td>Full execution history.</td>
+                </tr>
+                <tr>
+                    <td><code>graph</code></td>
+                    <td>GraphState</td>
+                    <td>The raw graph data structure.</td>
+                </tr>
+            </table>
+        </section>
+
+    </main>
+
+    <script>
+        // Theme Toggle Logic
+        const themeBtn = document.getElementById('theme-toggle');
+        const icon = themeBtn.querySelector('i');
+
+        // Check local storage or system preference
+        const currentTheme = localStorage.getItem('theme') || 'dark';
+        document.body.setAttribute('data-theme', currentTheme);
+        updateIcon(currentTheme);
+
+        themeBtn.addEventListener('click', () => {
+            const newTheme = document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            document.body.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateIcon(newTheme);
+        });
+
+        function updateIcon(theme) {
+            if (theme === 'dark') {
+                icon.classList.remove('fa-sun');
+                icon.classList.add('fa-moon');
+            } else {
+                icon.classList.remove('fa-moon');
+                icon.classList.add('fa-sun');
+            }
+        }
+
+        // Smooth scrolling for sidebar links
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', function (e) {
+                e.preventDefault();
+                const targetId = this.getAttribute('href');
+                document.querySelector(targetId).scrollIntoView({
+                    behavior: 'smooth'
+                });
+
+                // Update active state
+                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+    </script>
+
+</body>
+
+</html>

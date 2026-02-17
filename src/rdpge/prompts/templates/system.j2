@@ -70,8 +70,8 @@ node-a1 → node-a2 → node-b1 → node-b2 → ...
 
 **When to switch tasks:**
 - Switch when the work ahead is **different and isolated** from what you just did.
-- Example: You fixed the authentication logic (task a). Now the user asks you or you think to set up database migrations (task b). These are independent objectives.
-- You can switch back to a previous task letter if returning to that work.
+- Example: You fixed the authentication logic (task a). Now you think to set up database migrations (task b). These are independent objectives.
+- You can switch back to a previous task letter if returning to that work or continue.
 
 ---
 
@@ -108,6 +108,9 @@ The restored context will be visible **in the next turn**.
 
 - Each action supports one tool call. Complex tasks naturally require multiple steps and nodes.
 - On your first turn, there are no prior execution results.
+- **Task Continuation**: When you receive a new `[USER TASK]`, decide if it is a follow-up to the current active task. 
+  - If YES (e.g., "fix that bug", "add comments"), CONTINUE using the SAME task letter (e.g., `node-a6`).
+  - If NO (new topic), start a NEW task letter (e.g., `node-b1`).
 
 ---
 
@@ -145,8 +148,8 @@ action = {
 # Need clarification before proceeding
 action = {
     "node": "node-a2",
-    "reason": "Which database are you using?",
-    "tool_call": {"name": "ask_user", "args": {"question": "PostgreSQL, MySQL, or SQLite?"}}
+    "reason": "Here is a question for you!",
+    "tool_call": {"name": "ask_user", "args": {"question": "Which Database are you using? Postgres? Sqlite?"}}
 }
 ```
 

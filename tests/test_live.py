@@ -110,7 +110,7 @@ async def main():
     print("  LLM: Qwen3 Coder 480B (Together AI)")
     print("="*60)
 
-    task = "Calculate 234 * 567 and also look up what asyncio is."
+    task = "Calculate 234 * 20933 and also look up what javascript is"
 
     print(f"\n  Task: {task}\n")
 
